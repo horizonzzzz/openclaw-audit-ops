@@ -31,13 +31,15 @@ export const DEFAULT_AUDIT_RULES: AuditRule[] = [
     action: "block",
     match: {
       toolNames: ["exec", "process"],
+      paramPaths: ["command", "cmd"],
       paramPatterns: [
-        "\\brm\\s+-rf\\b",
-        "\\bgit\\s+push\\b",
-        "\\bnpm\\s+publish\\b",
-        "\\bgh\\s+pr\\s+merge\\b",
-        "\\bdocker\\b",
-        "\\bssh\\b"
+        "(?:^|&&|\\|\\||;|\\n)\\s*(?:sudo\\s+)?rm\\s+-rf(?:\\s|$)",
+        "(?:^|&&|\\|\\||;|\\n)\\s*(?:sudo\\s+)?mkfs(?:\\.[a-z0-9_-]+)?\\b",
+        "(?:^|&&|\\|\\||;|\\n)\\s*dd\\s+if=",
+        "(?:^|&&|\\|\\||;|\\n)\\s*chmod\\s+-R\\s+777\\b",
+        "(?:^|&&|\\|\\||;|\\n)\\s*git\\s+push\\s+--force(?:-with-lease)?\\b",
+        "(?:^|&&|\\|\\||;|\\n)\\s*npm\\s+publish\\b",
+        "(?:^|&&|\\|\\||;|\\n)\\s*gh\\s+pr\\s+merge\\b"
       ]
     }
   },
@@ -48,6 +50,7 @@ export const DEFAULT_AUDIT_RULES: AuditRule[] = [
     action: "block",
     match: {
       toolNames: ["write", "edit"],
+      paramPaths: ["path", "content"],
       paramPatterns: [
         "\\.env(?:\\.|$)",
         "\\bid_rsa\\b",
@@ -63,6 +66,7 @@ export const DEFAULT_AUDIT_RULES: AuditRule[] = [
     action: "alert",
     match: {
       toolNames: ["message", "gateway"],
+      paramPaths: ["message", "content", "body", "payload"],
       paramPatterns: ["\\b(secret|password|token|credential|api[_-]?key)\\b"]
     }
   }
