@@ -16,6 +16,7 @@ export type AuditPolicyMatch = {
   ruleId: string;
   severity: AuditSeverity;
   action: AuditRuleAction;
+  evidencePaths: string[];
 };
 
 export type AuditPolicyDecision = {
@@ -83,33 +84,59 @@ function matchPattern(pattern: string, haystack: string): boolean {
   }
 }
 
-function matchesRule(rule: AuditRule, toolName: string, flattened: FlattenedParamEntry[]): boolean {
+function matchesPathTarget(entryPath: string, targetPath: string): boolean {
+  const normalizedEntryPath = entryPath.trim().toLowerCase();
+  const normalizedTargetPath = targetPath.trim().toLowerCase();
+  return (
+    normalizedEntryPath === normalizedTargetPath ||
+    normalizedEntryPath.startsWith(`${normalizedTargetPath}.`) ||
+    normalizedEntryPath.startsWith(`${normalizedTargetPath}[`)
+  );
+}
+
+function collectRuleEvidence(
+  rule: AuditRule,
+  toolName: string,
+  flattened: FlattenedParamEntry[]
+): string[] | null {
   const normalizedToolName = normalizeName(toolName);
   const toolNames = rule.match.toolNames?.map(normalizeName);
   if (toolNames && toolNames.length > 0 && !toolNames.includes(normalizedToolName)) {
-    return false;
+    return null;
   }
 
   const pathTargets = rule.match.paramPaths?.map((entry) => entry.trim().toLowerCase());
+  const pathMatchedEntries =
+    pathTargets && pathTargets.length > 0
+      ? flattened.filter((entry) => pathTargets.some((target) => matchesPathTarget(entry.path, target)))
+      : flattened;
+
   if (pathTargets && pathTargets.length > 0) {
-    const hasPathMatch = flattened.some((entry) => pathTargets.includes(entry.path.toLowerCase()));
-    if (!hasPathMatch) {
-      return false;
+    if (pathMatchedEntries.length === 0) {
+      return null;
     }
   }
 
   const patterns = rule.match.paramPatterns;
   if (patterns && patterns.length > 0) {
-    const haystacks = flattened.flatMap((entry) => [entry.text, `${entry.path}=${entry.text}`]);
-    const matchedPattern = patterns.some((pattern) =>
-      haystacks.some((haystack) => matchPattern(pattern, haystack))
-    );
-    if (!matchedPattern) {
-      return false;
+    const matchedPaths = new Set<string>();
+    for (const entry of pathMatchedEntries) {
+      const haystacks = [entry.text, `${entry.path}=${entry.text}`];
+      if (patterns.some((pattern) => haystacks.some((haystack) => matchPattern(pattern, haystack)))) {
+        matchedPaths.add(entry.path);
+      }
     }
+    if (matchedPaths.size === 0) {
+      return null;
+    }
+    return [...matchedPaths];
   }
 
-  return Boolean(toolNames?.length || pathTargets?.length || patterns?.length);
+  if (pathMatchedEntries.length > 0) {
+    return [...new Set(pathMatchedEntries.map((entry) => entry.path))];
+  }
+
+  return Boolean(toolNames?.length || pathTargets?.length || patterns?.length) ? ["$tool"] : null;
 }
 
 function resolveDecision(mode: AuditMode, matchedRules: AuditPolicyMatch[]): AuditPolicyDecision["decision"] {
@@ -155,11 +182,23 @@ export function evaluateAuditPolicy(params: {
   const flattened = flattenValue(params.rawParams);
   const matchedRules = params.config.rules
     .filter((rule) => rule.enabled)
-    .filter((rule) => matchesRule(rule, params.toolName, flattened))
     .map((rule) => ({
+      rule,
+      evidencePaths: collectRuleEvidence(rule, params.toolName, flattened)
+    }))
+    .filter(
+      (
+        entry
+      ): entry is {
+        rule: AuditRule;
+        evidencePaths: string[];
+      } => Array.isArray(entry.evidencePaths) && entry.evidencePaths.length > 0
+    )
+    .map(({ rule, evidencePaths }) => ({
       ruleId: rule.id,
       severity: rule.severity,
-      action: rule.action
+      action: rule.action,
+      evidencePaths
     }));
 
   return {

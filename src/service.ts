@@ -56,21 +56,31 @@ type PluginHookAfterToolCallEvent = {
 
 type AuditEventRecord = {
   ts: string;
-  phase: "before_tool_call" | "after_tool_call";
+  eventType: "blocked" | "completed";
+  correlationId: string;
+  detectedAt?: string;
+  completedAt?: string;
   toolName: string;
   toolCallId?: string;
   runId?: string;
   sessionId?: string;
   sessionKey?: string;
   agentId?: string;
+  outcome: "blocked" | "executed" | "failed";
   decision: "allow" | "alert" | "block";
   severity?: string;
   matchedRuleIds: string[];
+  evidencePaths?: string[];
   sanitizedParams: unknown;
   resultSummary?: string;
   error?: string;
   durationMs?: number;
 };
+
+type PendingAuditRecord = Omit<
+  AuditEventRecord,
+  "eventType" | "ts" | "completedAt" | "outcome" | "resultSummary" | "error" | "durationMs"
+>;
 
 type AuditOpsManagerParams = {
   config?: unknown;
@@ -90,9 +100,28 @@ function buildBlockReason(record: AuditEventRecord): string {
   return `Blocked sensitive tool operation: ${record.toolName} matched ${record.matchedRuleIds.join(", ")}`;
 }
 
+function buildCorrelationId(params: {
+  runId?: string;
+  toolCallId?: string;
+  toolName: string;
+}): string {
+  if (params.runId && params.toolCallId) {
+    return `${params.runId}:${params.toolCallId}`;
+  }
+  if (params.toolCallId) {
+    return params.toolCallId;
+  }
+  if (params.runId) {
+    return `${params.runId}:${params.toolName}`;
+  }
+  return `${params.toolName}:${Date.now()}`;
+}
+
 export function createAuditOpsManager(params: AuditOpsManagerParams) {
   const config = resolveAuditOpsPluginConfig(params.config);
   let logFilePath: string | null = null;
+  const pendingByCorrelationId = new Map<string, PendingAuditRecord>();
+  const MAX_PENDING_RECORDS = 1024;
 
   const ensureLogPath = async (ctx?: OpenClawPluginServiceContext): Promise<string | null> => {
     if (ctx?.stateDir) {
@@ -139,6 +168,7 @@ export function createAuditOpsManager(params: AuditOpsManagerParams) {
         },
         async stop() {
           logFilePath = null;
+          pendingByCorrelationId.clear();
         }
       };
     },
@@ -156,9 +186,15 @@ export function createAuditOpsManager(params: AuditOpsManagerParams) {
         return;
       }
 
-      const record: AuditEventRecord = {
-        ts: new Date().toISOString(),
-        phase: "before_tool_call",
+      const correlationId = buildCorrelationId({
+        runId: ctx.runId,
+        toolCallId: ctx.toolCallId,
+        toolName: event.toolName
+      });
+
+      const baseRecord: PendingAuditRecord = {
+        correlationId,
+        detectedAt: new Date().toISOString(),
         toolName: event.toolName,
         toolCallId: ctx.toolCallId,
         runId: ctx.runId,
@@ -168,13 +204,26 @@ export function createAuditOpsManager(params: AuditOpsManagerParams) {
         decision: evaluated.decision,
         severity: evaluated.severity ?? undefined,
         matchedRuleIds: evaluated.matchedRules.map((rule) => rule.ruleId),
+        evidencePaths: [...new Set(evaluated.matchedRules.flatMap((rule) => rule.evidencePaths))],
         sanitizedParams: evaluated.sanitizedParams
       };
-
-      await persistAuditRecord(record);
-      maybeEmitSystemEvent(record);
+      maybeEmitSystemEvent({
+        ...baseRecord,
+        ts: baseRecord.detectedAt ?? new Date().toISOString(),
+        eventType: evaluated.decision === "block" ? "blocked" : "completed",
+        completedAt: evaluated.decision === "block" ? baseRecord.detectedAt : undefined,
+        outcome: evaluated.decision === "block" ? "blocked" : "executed"
+      });
 
       if (evaluated.decision === "block") {
+        const record: AuditEventRecord = {
+          ...baseRecord,
+          ts: baseRecord.detectedAt ?? new Date().toISOString(),
+          eventType: "blocked",
+          completedAt: baseRecord.detectedAt,
+          outcome: "blocked"
+        };
+        await persistAuditRecord(record);
         params.logger.warn(buildBlockReason(record));
         return {
           block: true,
@@ -182,34 +231,58 @@ export function createAuditOpsManager(params: AuditOpsManagerParams) {
         };
       }
 
+      pendingByCorrelationId.set(correlationId, baseRecord);
+      if (pendingByCorrelationId.size > MAX_PENDING_RECORDS) {
+        const oldest = pendingByCorrelationId.keys().next().value;
+        if (oldest) {
+          pendingByCorrelationId.delete(oldest);
+        }
+      }
+
       params.logger.info(
-        `audit-ops observed ${event.toolName} (${record.severity ?? "unknown"}: ${record.matchedRuleIds.join(", ")})`
+        `audit-ops observed ${event.toolName} (${baseRecord.severity ?? "unknown"}: ${baseRecord.matchedRuleIds.join(", ")})`
       );
     },
 
     async handleAfterToolCall(event: PluginHookAfterToolCallEvent, ctx: PluginHookToolContext): Promise<void> {
+      const correlationId = buildCorrelationId({
+        runId: ctx.runId,
+        toolCallId: ctx.toolCallId,
+        toolName: event.toolName
+      });
+      const pendingRecord = pendingByCorrelationId.get(correlationId);
+      pendingByCorrelationId.delete(correlationId);
+
       const evaluated = evaluateAuditPolicy({
         config,
         toolName: event.toolName,
         rawParams: event.params
       });
-      if (evaluated.matchedRules.length === 0 && !event.error) {
+      if (!pendingRecord && evaluated.matchedRules.length === 0) {
         return;
       }
 
       const record: AuditEventRecord = {
         ts: new Date().toISOString(),
-        phase: "after_tool_call",
+        eventType: "completed",
+        correlationId,
+        detectedAt: pendingRecord?.detectedAt,
+        completedAt: new Date().toISOString(),
         toolName: event.toolName,
         toolCallId: ctx.toolCallId,
         runId: ctx.runId,
         sessionId: ctx.sessionId,
         sessionKey: ctx.sessionKey,
         agentId: ctx.agentId,
-        decision: evaluated.decision,
-        severity: evaluated.severity ?? undefined,
-        matchedRuleIds: evaluated.matchedRules.map((rule) => rule.ruleId),
-        sanitizedParams: evaluated.sanitizedParams,
+        outcome: event.error ? "failed" : "executed",
+        decision: pendingRecord?.decision ?? evaluated.decision,
+        severity: pendingRecord?.severity ?? evaluated.severity ?? undefined,
+        matchedRuleIds:
+          pendingRecord?.matchedRuleIds ?? evaluated.matchedRules.map((rule) => rule.ruleId),
+        evidencePaths:
+          pendingRecord?.evidencePaths ??
+          [...new Set(evaluated.matchedRules.flatMap((rule) => rule.evidencePaths))],
+        sanitizedParams: pendingRecord?.sanitizedParams ?? evaluated.sanitizedParams,
         resultSummary: summarizeAuditValue(event.result),
         error: event.error ? summarizeAuditValue(event.error) : undefined,
         durationMs: event.durationMs
