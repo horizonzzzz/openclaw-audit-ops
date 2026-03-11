@@ -1,0 +1,36 @@
+{
+  "name": "@your-scope/openclaw-audit-ops",
+  "version": "0.1.0",
+  "description": "Audit and sensitive-operation guard plugin for OpenClaw",
+  "type": "module",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsup index.ts --format esm --outDir dist --clean",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "openclaw": "file:../../git/openclaw",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.2"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.9"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  }
+}
