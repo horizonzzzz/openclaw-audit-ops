@@ -2,7 +2,7 @@
   "id": "audit-ops",
   "name": "Audit Ops",
   "description": "Observe or block sensitive tool operations and emit audit events.",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

@@ -8,7 +8,7 @@ Storage and schema management are built on `Drizzle ORM + better-sqlite3`.
 From npm:
 
 ```bash
-openclaw plugins install @horizon_6666/openclaw-audit-ops
+openclaw plugins install @horizonzzzz/openclaw-audit-ops
 ```
 
 From a local checkout:
