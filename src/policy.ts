@@ -205,6 +205,6 @@ export function evaluateAuditPolicy(params: {
     decision: resolveDecision(params.config.mode, matchedRules),
     severity: resolveHighestSeverity(matchedRules),
     matchedRules,
-    sanitizedParams: redactAuditValue(params.rawParams)
+    sanitizedParams: redactAuditValue(params.rawParams, "", params.config.redaction)
   };
 }

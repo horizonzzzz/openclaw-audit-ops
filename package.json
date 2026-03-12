@@ -1,6 +1,6 @@
 {
-  "name": "@your-scope/openclaw-audit-ops",
-  "version": "0.1.0",
+  "name": "@horizon_6666/audit-ops",
+  "version": "0.2.0",
   "description": "Audit and sensitive-operation guard plugin for OpenClaw",
   "type": "module",
   "files": [
@@ -18,19 +18,21 @@
   },
   "scripts": {
     "build": "tsup index.ts --format esm --outDir dist --clean",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
     "prepack": "npm run build"
   },
   "devDependencies": {
-    "openclaw": "file:../../git/openclaw",
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.9",
     "tsup": "^8.5.0",
     "typescript": "^5.8.2"
   },
   "peerDependencies": {
     "openclaw": ">=2026.3.9"
   },
-  "peerDependenciesMeta": {
-    "openclaw": {
-      "optional": true
-    }
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "drizzle-orm": "^0.45.1"
   }
 }

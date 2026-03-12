@@ -1,22 +1,53 @@
+import type { AuditRedactionLevel } from "./config.js";
+
 const REDACTED = "[REDACTED]";
-const SENSITIVE_KEY_PATTERN =
+const BASE_SENSITIVE_KEY_PATTERN =
   /(?:token|secret|password|passwd|api[_-]?key|credential|cookie|authorization|session)/i;
 const SENSITIVE_VALUE_PATTERN =
   /(?:bearer\s+[a-z0-9._-]+|sk-[a-z0-9_-]+|gh[pousr]_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+)/i;
-const STRUCTURED_CONTENT_KEY_PATTERN = /(?:content|message|body|payload|text)$/i;
+const STRUCTURED_CONTENT_KEY_PATTERN = /(?:content|message|body|payload|text|prompt)$/i;
 const MAX_TEXT_LENGTH = 240;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_OBJECT_KEYS = 40;
 
-function truncateText(value: string, maxLength = MAX_TEXT_LENGTH): string {
+export type AuditRedactionOptions = {
+  level?: AuditRedactionLevel;
+  extraSensitiveKeys?: string[];
+  maxTextLength?: number;
+};
+
+function resolveOptions(options?: AuditRedactionOptions): Required<AuditRedactionOptions> {
+  return {
+    level: options?.level ?? "standard",
+    extraSensitiveKeys: options?.extraSensitiveKeys ?? [],
+    maxTextLength: options?.maxTextLength ?? MAX_TEXT_LENGTH
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildSensitiveKeyPattern(options: Required<AuditRedactionOptions>): RegExp {
+  if (options.extraSensitiveKeys.length === 0) {
+    return BASE_SENSITIVE_KEY_PATTERN;
+  }
+  const extra = options.extraSensitiveKeys.map((entry) => escapeRegExp(entry)).join("|");
+  return new RegExp(`${BASE_SENSITIVE_KEY_PATTERN.source}|(?:${extra})`, "i");
+}
+
+function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
-function redactString(value: string): string {
+function redactString(value: string, options: Required<AuditRedactionOptions>): string {
   if (SENSITIVE_VALUE_PATTERN.test(value)) {
     return REDACTED;
   }
-  return truncateText(value);
+  if (options.level === "strict" && value.length > 32) {
+    return `${REDACTED} (len=${value.length})`;
+  }
+  return truncateText(value, options.maxTextLength);
 }
 
 function looksLikeJson(value: string): boolean {
@@ -27,7 +58,7 @@ function looksLikeJson(value: string): boolean {
   );
 }
 
-function redactEnvLikeText(value: string): string | null {
+function redactEnvLikeText(value: string, options: Required<AuditRedactionOptions>, sensitiveKeyPattern: RegExp): string | null {
   const lines = value.split(/\r?\n/);
   let sawAssignment = false;
   const redacted = lines.map((line) => {
@@ -37,75 +68,113 @@ function redactEnvLikeText(value: string): string | null {
     }
     sawAssignment = true;
     const [, prefix, key, separator, rawValue] = match;
-    const nextValue = SENSITIVE_KEY_PATTERN.test(key)
+    const nextValue = sensitiveKeyPattern.test(key)
       ? REDACTED
-      : truncateText(redactString(rawValue.trim()));
+      : truncateText(redactString(rawValue.trim(), options), options.maxTextLength);
     return `${prefix}${key}${separator}${nextValue}`;
   });
-  return sawAssignment ? truncateText(redacted.join("\n")) : null;
+  return sawAssignment ? truncateText(redacted.join("\n"), options.maxTextLength) : null;
 }
 
-function redactStructuredString(value: string): string | null {
+function redactStructuredString(
+  value: string,
+  options: Required<AuditRedactionOptions>,
+  sensitiveKeyPattern: RegExp
+): string | null {
   if (looksLikeJson(value)) {
     try {
-      return truncateText(JSON.stringify(redactAuditValue(JSON.parse(value))));
+      return truncateText(
+        JSON.stringify(redactAuditValue(JSON.parse(value), "", options)),
+        options.maxTextLength
+      );
     } catch {
       return null;
     }
   }
 
-  return redactEnvLikeText(value);
+  return redactEnvLikeText(value, options, sensitiveKeyPattern);
 }
 
-function redactContextualString(value: string, keyPath: string): string {
-  const structured = redactStructuredString(value);
+function redactContextualString(
+  value: string,
+  keyPath: string,
+  options: Required<AuditRedactionOptions>,
+  sensitiveKeyPattern: RegExp
+): string {
+  const structured = redactStructuredString(value, options, sensitiveKeyPattern);
   if (structured) {
     return structured;
   }
 
-  if (STRUCTURED_CONTENT_KEY_PATTERN.test(keyPath) && SENSITIVE_KEY_PATTERN.test(value)) {
-    return `${REDACTED} (len=${value.length})`;
+  if (sensitiveKeyPattern.test(keyPath)) {
+    return REDACTED;
   }
 
-  return redactString(value);
+  if (STRUCTURED_CONTENT_KEY_PATTERN.test(keyPath)) {
+    if (options.level === "minimal") {
+      return truncateText(value, options.maxTextLength);
+    }
+    if (options.level === "strict") {
+      return `${REDACTED} (len=${value.length})`;
+    }
+    if (BASE_SENSITIVE_KEY_PATTERN.test(value)) {
+      return `${REDACTED} (len=${value.length})`;
+    }
+  }
+
+  return redactString(value, options);
 }
 
-export function redactAuditValue(value: unknown, keyPath = ""): unknown {
+export function redactAuditValue(value: unknown, keyPath = "", rawOptions?: AuditRedactionOptions): unknown {
+  const options = resolveOptions(rawOptions);
+  const sensitiveKeyPattern = buildSensitiveKeyPattern(options);
   if (value == null) {
     return value;
   }
   if (typeof value === "string") {
-    return SENSITIVE_KEY_PATTERN.test(keyPath) ? REDACTED : redactContextualString(value, keyPath);
+    return sensitiveKeyPattern.test(keyPath)
+      ? REDACTED
+      : redactContextualString(value, keyPath, options, sensitiveKeyPattern);
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.slice(0, MAX_ARRAY_ITEMS).map((entry, index) =>
-      redactAuditValue(entry, keyPath ? `${keyPath}[${index}]` : `[${index}]`)
+    const items =
+      options.level === "strict" ? value.slice(0, Math.min(10, MAX_ARRAY_ITEMS)) : value.slice(0, MAX_ARRAY_ITEMS);
+    return items.map((entry, index) =>
+      redactAuditValue(entry, keyPath ? `${keyPath}[${index}]` : `[${index}]`, options)
     );
   }
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).slice(0, MAX_OBJECT_KEYS);
+    const entries = Object.entries(value as Record<string, unknown>).slice(
+      0,
+      options.level === "strict" ? Math.min(20, MAX_OBJECT_KEYS) : MAX_OBJECT_KEYS
+    );
     const redacted: Record<string, unknown> = {};
     for (const [key, entry] of entries) {
       const nextPath = keyPath ? `${keyPath}.${key}` : key;
-      redacted[key] = SENSITIVE_KEY_PATTERN.test(key) ? REDACTED : redactAuditValue(entry, nextPath);
+      redacted[key] = sensitiveKeyPattern.test(key) ? REDACTED : redactAuditValue(entry, nextPath, options);
     }
     return redacted;
   }
   return String(value);
 }
 
-export function summarizeAuditValue(value: unknown, maxLength = MAX_TEXT_LENGTH): string | undefined {
+export function summarizeAuditValue(
+  value: unknown,
+  maxLength = MAX_TEXT_LENGTH,
+  options?: AuditRedactionOptions
+): string | undefined {
   if (value === undefined) {
     return undefined;
   }
+  const resolved = resolveOptions({ ...options, maxTextLength: maxLength });
   if (typeof value === "string") {
-    return truncateText(redactString(value), maxLength);
+    return truncateText(redactString(value, resolved), maxLength);
   }
   try {
-    const encoded = JSON.stringify(redactAuditValue(value));
+    const encoded = JSON.stringify(redactAuditValue(value, "", resolved));
     return typeof encoded === "string" ? truncateText(encoded, maxLength) : undefined;
   } catch {
     return truncateText(String(value), maxLength);

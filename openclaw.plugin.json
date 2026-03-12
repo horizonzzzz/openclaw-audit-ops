@@ -2,7 +2,7 @@
   "id": "audit-ops",
   "name": "Audit Ops",
   "description": "Observe or block sensitive tool operations and emit audit events.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -16,6 +16,69 @@
         "items": {
           "type": "string",
           "enum": ["log", "system_event"]
+        }
+      },
+      "storage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "retentionDays": { "type": "integer", "minimum": 1 },
+          "maxRows": { "type": "integer", "minimum": 100 }
+        }
+      },
+      "capture": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabledEventTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "before_model_resolve",
+                "before_prompt_build",
+                "before_agent_start",
+                "llm_input",
+                "llm_output",
+                "agent_end",
+                "before_compaction",
+                "after_compaction",
+                "before_reset",
+                "message_received",
+                "message_sending",
+                "message_sent",
+                "before_tool_call",
+                "after_tool_call",
+                "tool_result_persist",
+                "before_message_write",
+                "session_start",
+                "session_end",
+                "subagent_spawning",
+                "subagent_delivery_target",
+                "subagent_spawned",
+                "subagent_ended",
+                "gateway_start",
+                "gateway_stop"
+              ]
+            }
+          },
+          "includePayload": { "type": "boolean" },
+          "includeResultSummary": { "type": "boolean" }
+        }
+      },
+      "redaction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": ["minimal", "standard", "strict"]
+          },
+          "extraSensitiveKeys": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
         }
       },
       "rules": {
@@ -66,6 +129,18 @@
     "notifiers": {
       "label": "Alert sinks",
       "help": "Select where audit alerts are emitted."
+    },
+    "storage": {
+      "label": "Storage",
+      "help": "Persist audit events to SQLite with retention and row limits."
+    },
+    "capture": {
+      "label": "Capture policy",
+      "help": "Choose which lifecycle events are recorded and whether payloads are kept."
+    },
+    "redaction": {
+      "label": "Redaction",
+      "help": "Control how aggressively prompts, messages, params, and results are sanitized."
     },
     "rules": {
       "label": "Audit rules",
