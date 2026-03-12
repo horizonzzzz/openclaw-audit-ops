@@ -41,6 +41,11 @@ function truncateText(value: string, maxLength: number): string {
 }
 
 function redactString(value: string, options: Required<AuditRedactionOptions>): string {
+  // minimal: no redaction, just truncate
+  if (options.level === "minimal") {
+    return truncateText(value, options.maxTextLength);
+  }
+  // standard: redact sensitive values, truncate long text
   if (SENSITIVE_VALUE_PATTERN.test(value)) {
     return REDACTED;
   }
@@ -101,25 +106,31 @@ function redactContextualString(
   options: Required<AuditRedactionOptions>,
   sensitiveKeyPattern: RegExp
 ): string {
+  // minimal: no redaction, only truncate
+  if (options.level === "minimal") {
+    return truncateText(value, options.maxTextLength);
+  }
+
   const structured = redactStructuredString(value, options, sensitiveKeyPattern);
   if (structured) {
     return structured;
   }
 
+  // standard/strict: redact sensitive key paths
   if (sensitiveKeyPattern.test(keyPath)) {
     return REDACTED;
   }
 
   if (STRUCTURED_CONTENT_KEY_PATTERN.test(keyPath)) {
-    if (options.level === "minimal") {
+    // standard: redact if contains sensitive pattern, else truncate
+    if (options.level === "standard") {
+      if (BASE_SENSITIVE_KEY_PATTERN.test(value)) {
+        return `${REDACTED} (len=${value.length})`;
+      }
       return truncateText(value, options.maxTextLength);
     }
-    if (options.level === "strict") {
-      return `${REDACTED} (len=${value.length})`;
-    }
-    if (BASE_SENSITIVE_KEY_PATTERN.test(value)) {
-      return `${REDACTED} (len=${value.length})`;
-    }
+    // strict: redact with length indicator
+    return `${REDACTED} (len=${value.length})`;
   }
 
   return redactString(value, options);
@@ -140,20 +151,20 @@ export function redactAuditValue(value: unknown, keyPath = "", rawOptions?: Audi
     return value;
   }
   if (Array.isArray(value)) {
-    const items =
-      options.level === "strict" ? value.slice(0, Math.min(10, MAX_ARRAY_ITEMS)) : value.slice(0, MAX_ARRAY_ITEMS);
+    const maxItems = options.level === "strict" ? 10 : MAX_ARRAY_ITEMS;
+    const items = value.slice(0, maxItems);
     return items.map((entry, index) =>
       redactAuditValue(entry, keyPath ? `${keyPath}[${index}]` : `[${index}]`, options)
     );
   }
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).slice(
-      0,
-      options.level === "strict" ? Math.min(20, MAX_OBJECT_KEYS) : MAX_OBJECT_KEYS
-    );
+    const maxEntries = options.level === "strict" ? 20 : MAX_OBJECT_KEYS;
+    const entries = Object.entries(value as Record<string, unknown>).slice(0, maxEntries);
     const redacted: Record<string, unknown> = {};
     for (const [key, entry] of entries) {
       const nextPath = keyPath ? `${keyPath}.${key}` : key;
+      // minimal: keep original values (only redact explicit sensitive keys)
+      // standard/strict: redact sensitive keys
       redacted[key] = sensitiveKeyPattern.test(key) ? REDACTED : redactAuditValue(entry, nextPath, options);
     }
     return redacted;
