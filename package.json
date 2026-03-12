@@ -2,6 +2,14 @@
   "name": "@horizonzzzz/audit-ops",
   "version": "1.0.0",
   "description": "Audit and sensitive-operation guard plugin for OpenClaw",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/horizonzzzz/openclaw-audit-ops.git"
+  },
+  "homepage": "https://github.com/horizonzzzz/openclaw-audit-ops#readme",
+  "bugs": {
+    "url": "https://github.com/horizonzzzz/openclaw-audit-ops/issues"
+  },
   "type": "module",
   "files": [
     "dist",
@@ -21,6 +29,9 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

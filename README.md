@@ -145,5 +145,25 @@ npm run db:push
 
 ```bash
 npm pack
+```
+
+For local publishing:
+
+```bash
 npm publish --access public
 ```
+
+For GitHub Actions publishing:
+
+1. Add repository secret `NPM_TOKEN` in GitHub.
+2. Bump the version in `package.json`.
+3. Commit the version change.
+4. Create a matching tag such as `v1.0.1`.
+5. Push the commit and tag.
+
+```bash
+git tag v1.0.1
+git push origin main --follow-tags
+```
+
+The workflow in `.github/workflows/release.yml` publishes with `--provenance`, so npm can associate the published package with this GitHub repository and workflow run.
