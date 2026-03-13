@@ -1,2 +1,10 @@
 node_modules
+pnpm-debug.log*
+
+apps/*/.next
+apps/*/data
+apps/*/*.tsbuildinfo
+
+packages/*/dist
+
 dist
