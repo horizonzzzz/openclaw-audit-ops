@@ -4,7 +4,6 @@ import {
   listAuditEvents,
   readAuditSnapshots,
   readRuntimeAuditOpsConfig,
-  resolveAuditDatabasePath,
   writeRuntimeAuditOpsConfig,
   type AuditEventListFilters,
   type AuditOpsPluginConfig
@@ -13,23 +12,11 @@ import { access } from "node:fs/promises";
 import { readTarget } from "./target-store";
 
 export async function getResolvedTarget() {
-  const target = await readTarget();
-  if (!target) {
-    throw new Error("TARGET_NOT_CONFIGURED");
-  }
-  return {
-    ...target,
-    dbPath: resolveAuditDatabasePath(target.stateDir)
-  };
+  return readTarget();
 }
 
 export async function getHealth() {
   const target = await readTarget();
-  if (!target) {
-    return { configured: false, configReadable: false, databaseReadable: false };
-  }
-
-  const dbPath = resolveAuditDatabasePath(target.stateDir);
   let configReadable = false;
   let databaseReadable = false;
 
@@ -39,11 +26,17 @@ export async function getHealth() {
   } catch {}
 
   try {
-    await access(dbPath);
+    await access(target.dbPath);
     databaseReadable = true;
   } catch {}
 
-  return { configured: true, configReadable, databaseReadable, configPath: target.configPath, dbPath };
+  return {
+    configReadable,
+    databaseReadable,
+    configPath: target.configPath,
+    dbPath: target.dbPath,
+    stateDir: target.stateDir
+  };
 }
 
 export async function getRuntimeConfig() {

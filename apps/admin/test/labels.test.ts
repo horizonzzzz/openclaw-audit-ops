@@ -22,7 +22,6 @@ describe("admin chinese labels", () => {
   test("formats target health summary in chinese", () => {
     expect(
       formatStorageHealth({
-        configured: true,
         configReadable: true,
         databaseReadable: false
       })
