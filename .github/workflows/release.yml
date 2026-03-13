@@ -21,18 +21,23 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-          cache: npm
+          cache: pnpm
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build package
-        run: npm run build
+        run: pnpm --filter @horizonzzzz/audit-ops build
 
       - name: Verify tag matches package version
         shell: bash
         run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          PACKAGE_VERSION="$(node -p "require('./packages/plugin/package.json').version")"
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
             echo "Tag version $TAG_VERSION does not match package.json version $PACKAGE_VERSION"
@@ -40,6 +45,6 @@ jobs:
           fi
 
       - name: Publish package
-        run: npm publish --provenance --access public
+        run: pnpm --filter @horizonzzzz/audit-ops publish --provenance --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
