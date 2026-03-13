@@ -1,6 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
-import { auditOpsPluginConfigSchema } from "./src/config.js";
-import { createAuditOpsManager } from "./src/service.js";
+import { auditOpsPluginConfigSchema } from "./src/runtime/config.js";
+import { createAuditOpsManager } from "./src/runtime/service.js";
 
 const plugin = {
   id: "audit-ops",
