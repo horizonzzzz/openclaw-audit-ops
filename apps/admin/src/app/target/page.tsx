@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Descriptions, Input, Space } from "antd";
+import { Alert, Card, Descriptions, Tag } from "antd";
 import { redirect } from "next/navigation";
 import { AdminShell } from "../../components/admin-shell";
+import { getHealth } from "../../lib/server/audit-service";
 import { hasValidSession } from "../../lib/server/auth";
 import { readTarget } from "../../lib/server/target-store";
 
@@ -12,60 +13,58 @@ export default async function TargetPage() {
   }
 
   const target = await readTarget();
+  const health = await getHealth();
 
   return (
-    <AdminShell title="目标环境" subtitle="指定当前管理的 OpenClaw 运行时配置文件和插件状态目录。">
+    <AdminShell title="目标环境" subtitle="管理台默认使用当前用户的 ~/.openclaw 目录，不再需要手动填写路径。">
       <Alert
         showIcon
         type="info"
-        message="这里填写的是宿主环境的真实路径。管理台会根据状态目录自动定位 audit-ops.sqlite。"
+        message="配置文件固定读取 ~/.openclaw/openclaw.json，审计数据库固定读取 ~/.openclaw/audit-ops.sqlite。"
       />
-      <Card title="目标环境配置">
-        <form action="/api/target" method="post">
-          <Space orientation="vertical" size={16} style={{ display: "flex" }}>
-            <div>
-              <div style={{ marginBottom: 8, fontWeight: 600 }}>运行时配置文件路径</div>
-              <Input
-                name="configPath"
-                defaultValue={target?.configPath ?? ""}
-                placeholder="例如：C:\\openclaw\\config.json"
-              />
-            </div>
-            <div>
-              <div style={{ marginBottom: 8, fontWeight: 600 }}>插件状态目录</div>
-              <Input
-                name="stateDir"
-                defaultValue={target?.stateDir ?? ""}
-                placeholder="例如：C:\\openclaw\\state\\plugins\\audit-ops"
-              />
-            </div>
-            <Button type="primary" htmlType="submit">
-              保存目标环境
-            </Button>
-          </Space>
-        </form>
+      <Card title="默认路径">
+        <Descriptions
+          column={1}
+          bordered
+          size="small"
+          items={[
+            {
+              key: "stateDir",
+              label: "OpenClaw 状态目录",
+              children: target.stateDir
+            },
+            {
+              key: "configPath",
+              label: "运行时配置文件",
+              children: (
+                <>
+                  {target.configPath}{" "}
+                  {health.configReadable ? <Tag color="success">可访问</Tag> : <Tag color="warning">未找到或不可读</Tag>}
+                </>
+              )
+            },
+            {
+              key: "dbPath",
+              label: "审计 SQLite 文件",
+              children: (
+                <>
+                  {target.dbPath}{" "}
+                  {health.databaseReadable ? <Tag color="success">可访问</Tag> : <Tag color="warning">未找到或不可读</Tag>}
+                </>
+              )
+            }
+          ]}
+        />
       </Card>
-      {target ? (
-        <Card title="当前保存值">
-          <Descriptions
-            column={1}
-            bordered
-            size="small"
-            items={[
-              {
-                key: "configPath",
-                label: "运行时配置文件路径",
-                children: target.configPath
-              },
-              {
-                key: "stateDir",
-                label: "插件状态目录",
-                children: target.stateDir
-              }
-            ]}
-          />
-        </Card>
-      ) : null}
+      <Card title="说明">
+        <p style={{ marginTop: 0 }}>
+          当前 admin 不再维护单独的目标环境配置，所有页面都会直接使用当前登录用户 home 目录下的
+          `~/.openclaw`。
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          如果 OpenClaw 尚未初始化，对应页面会提示配置文件或 SQLite 不可读，但不需要再手动录入路径。
+        </p>
+      </Card>
     </AdminShell>
   );
 }

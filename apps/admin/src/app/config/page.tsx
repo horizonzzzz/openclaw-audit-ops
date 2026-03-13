@@ -22,13 +22,13 @@ export default async function ConfigPage() {
   } catch {}
 
   return (
-    <AdminShell title="插件配置" subtitle="编辑 OpenClaw 宿主实际生效的 Audit Ops 运行时配置。">
+    <AdminShell title="插件配置" subtitle="编辑 ~/.openclaw/openclaw.json 中实际生效的 Audit Ops 运行时配置。">
       <Alert
         showIcon
         type="warning"
         message={`当前配置按 JSON 原文编辑，读取到的模式为：${modeText}。保存前请确认结构合法。`}
       />
-      <Card title="运行时配置 JSON" extra={<span style={{ color: "rgba(0, 0, 0, 0.45)" }}>直接写回宿主配置文件</span>}>
+      <Card title="运行时配置 JSON" extra={<span style={{ color: "rgba(0, 0, 0, 0.45)" }}>直接写回默认配置文件</span>}>
         <form action="/api/config" method="post">
           <Space orientation="vertical" size={16} style={{ display: "flex" }}>
             <Input.TextArea name="configJson" rows={24} defaultValue={payload} />

@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Col, Descriptions, Result, Row, Space, Statistic, Tag } from "antd";
+import { Alert, Button, Card, Col, Descriptions, Row, Space, Statistic, Tag } from "antd";
 import { redirect } from "next/navigation";
 import { AdminShell } from "../components/admin-shell";
 import { getHealth } from "../lib/server/audit-service";
@@ -15,24 +15,11 @@ export default async function HomePage() {
   const health = await getHealth();
 
   return (
-    <AdminShell title="控制台总览" subtitle="集中查看插件接入状态、运行时配置健康度和审计数据入口。">
-      {!health.configured ? (
-        <Result
-          status="warning"
-          title="尚未配置目标环境"
-          subTitle="请先填写 OpenClaw 运行时配置文件路径和插件状态目录。"
-          extra={
-            <Button type="primary" href="/target">
-              去配置目标环境
-            </Button>
-          }
-        />
-      ) : null}
-
+    <AdminShell title="控制台总览" subtitle="集中查看默认 OpenClaw 环境的配置健康度与审计数据入口。">
       <Row gutter={[16, 16]}>
         <Col xs={24} md={8}>
           <Card>
-            <Statistic title="目标环境" value={health.configured ? "已接入" : "未配置"} />
+            <Statistic title="目标目录" value="~/.openclaw" />
           </Card>
         </Col>
         <Col xs={24} md={8}>
@@ -53,37 +40,41 @@ export default async function HomePage() {
           <Alert
             type={health.configReadable && health.databaseReadable ? "success" : "warning"}
             message={formatStorageHealth(health)}
+            description="管理台会自动读取当前用户 ~/.openclaw 目录下的配置和插件数据库。"
             showIcon
           />
-          {health.configured ? (
-            <Descriptions
-              column={1}
-              bordered
-              size="small"
-              items={[
-                {
-                  key: "config",
-                  label: "运行时配置文件",
-                  children: (
-                    <>
-                      {health.configPath}{" "}
-                      {health.configReadable ? <Tag color="success">可访问</Tag> : <Tag color="error">不可访问</Tag>}
-                    </>
-                  )
-                },
-                {
-                  key: "db",
-                  label: "审计数据库",
-                  children: (
-                    <>
-                      {health.dbPath}{" "}
-                      {health.databaseReadable ? <Tag color="success">可访问</Tag> : <Tag color="warning">待检查</Tag>}
-                    </>
-                  )
-                }
-              ]}
-            />
-          ) : null}
+          <Descriptions
+            column={1}
+            bordered
+            size="small"
+            items={[
+              {
+                key: "state",
+                label: "OpenClaw 状态目录",
+                children: health.stateDir
+              },
+              {
+                key: "config",
+                label: "运行时配置文件",
+                children: (
+                  <>
+                    {health.configPath}{" "}
+                    {health.configReadable ? <Tag color="success">可访问</Tag> : <Tag color="error">不可访问</Tag>}
+                  </>
+                )
+              },
+              {
+                key: "db",
+                label: "审计数据库",
+                children: (
+                  <>
+                    {health.dbPath}{" "}
+                    {health.databaseReadable ? <Tag color="success">可访问</Tag> : <Tag color="warning">待检查</Tag>}
+                  </>
+                )
+              }
+            ]}
+          />
         </Space>
       </Card>
 
@@ -94,7 +85,7 @@ export default async function HomePage() {
               <Button type="primary" href="/events">
                 查看审计事件
               </Button>
-              <Button href="/target">管理目标环境</Button>
+              <Button href="/target">查看默认路径</Button>
               <Button href="/snapshots">查看配置快照</Button>
             </Space>
           </Card>
@@ -105,7 +96,7 @@ export default async function HomePage() {
               该控制台用于维护 Audit Ops 插件运行时配置，并浏览宿主环境中保存的 SQLite 审计数据。
             </p>
             <p style={{ marginBottom: 0 }}>
-              变更配置前请先确认目标路径指向的是当前生效的 OpenClaw 环境。
+              现在默认读取 `~/.openclaw`，不再需要额外配置目标环境路径。
             </p>
           </Card>
         </Col>

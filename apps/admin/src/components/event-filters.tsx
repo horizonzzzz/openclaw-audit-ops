@@ -30,7 +30,12 @@ export function EventFilters(props: {
 
   return (
     <Space wrap size={12}>
-      <Input value={toolName} onChange={(event) => setToolName(event.target.value)} placeholder="工具名称，例如 exec" style={{ width: 240 }} />
+      <Input
+        value={toolName}
+        onChange={(event) => setToolName(event.target.value)}
+        placeholder="工具名称，例如 exec"
+        style={{ width: 240 }}
+      />
       <Select
         value={decision}
         onChange={(value) => setDecision(value)}
