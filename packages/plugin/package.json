@@ -1,6 +1,6 @@
 {
   "name": "@horizonzzzz/audit-ops",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Audit and sensitive-operation guard plugin for OpenClaw",
   "repository": {
     "type": "git",
