@@ -1,51 +1,102 @@
+import { Button, Card, Empty, Table, Tag } from "antd";
+import dayjs from "dayjs";
+import { redirect } from "next/navigation";
+import { AdminShell } from "../../components/admin-shell";
+import { EventFilters } from "../../components/event-filters";
 import { getEvents } from "../../lib/server/audit-service";
 import { hasValidSession } from "../../lib/server/auth";
-import { redirect } from "next/navigation";
+import { formatDecisionLabel, formatSeverityLabel } from "../../lib/ui/labels";
 
-export default async function EventsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function EventsPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   if (!(await hasValidSession())) {
     redirect("/login");
   }
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const decision =
+    typeof resolvedSearchParams.decision === "string" ? resolvedSearchParams.decision : undefined;
+  const severity =
+    typeof resolvedSearchParams.severity === "string" ? resolvedSearchParams.severity : undefined;
+  const toolName =
+    typeof resolvedSearchParams.toolName === "string" ? resolvedSearchParams.toolName : undefined;
+
   let events = [] as Awaited<ReturnType<typeof getEvents>>;
+
   try {
-    events = await getEvents({});
+    events = await getEvents({ decision, severity, toolName });
   } catch {}
 
   return (
-    <div className="stack">
-      <div className="nav">
-        <a href="/">Overview</a>
-        <a href="/target">Target</a>
-        <a href="/config">Config</a>
-        <a href="/api/audit-events/export">Export JSON</a>
-      </div>
-      <section className="panel stack">
-        <h1>Audit Events</h1>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Occurred At</th>
-              <th>Event</th>
-              <th>Tool</th>
-              <th>Decision</th>
-              <th>Severity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((event: (typeof events)[number]) => (
-              <tr key={event.id}>
-                <td>{event.id}</td>
-                <td>{event.occurredAt}</td>
-                <td>{event.eventType}</td>
-                <td>{event.toolName ?? "-"}</td>
-                <td>{event.decision ?? "-"}</td>
-                <td>{event.severity ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-    </div>
+    <AdminShell title="审计事件" subtitle="查看 SQLite 中的审计记录，并按风险结果快速筛选。">
+      <Card title="筛选条件" extra={<Button href="/api/audit-events/export">导出 JSON</Button>}>
+        <EventFilters initialToolName={toolName} initialDecision={decision} initialSeverity={severity} />
+      </Card>
+
+      <Card title="事件列表">
+        <Table
+          rowKey="id"
+          dataSource={events}
+          locale={{ emptyText: <Empty description="暂无符合条件的审计事件" /> }}
+          pagination={{ pageSize: 12 }}
+          columns={[
+            { title: "ID", dataIndex: "id", width: 80 },
+            {
+              title: "发生时间",
+              dataIndex: "occurredAt",
+              width: 180,
+              render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm:ss")
+            },
+            { title: "事件类型", dataIndex: "eventType" },
+            {
+              title: "工具",
+              dataIndex: "toolName",
+              render: (value: string | null) => value ?? <span style={{ color: "rgba(0, 0, 0, 0.45)" }}>无</span>
+            },
+            {
+              title: "处理结果",
+              dataIndex: "decision",
+              width: 120,
+              render: (value: string | null) =>
+                value ? (
+                  <Tag color={value === "block" ? "error" : value === "alert" ? "warning" : "success"}>
+                    {formatDecisionLabel(value)}
+                  </Tag>
+                ) : (
+                  "-"
+                )
+            },
+            {
+              title: "风险等级",
+              dataIndex: "severity",
+              width: 120,
+              render: (value: string | null) =>
+                value ? (
+                  <Tag
+                    color={
+                      value === "critical"
+                        ? "error"
+                        : value === "high"
+                          ? "volcano"
+                          : value === "medium"
+                            ? "gold"
+                            : "default"
+                    }
+                  >
+                    {formatSeverityLabel(value)}
+                  </Tag>
+                ) : (
+                  "-"
+                )
+            }
+          ]}
+        />
+      </Card>
+    </AdminShell>
   );
 }
