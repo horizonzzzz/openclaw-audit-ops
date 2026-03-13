@@ -1,11 +1,32 @@
 # OpenClaw Audit Ops Workspace
 
-`pnpm` monorepo for the OpenClaw audit plugin and its standalone admin console.
+`pnpm` monorepo for the `@horizonzzzz/audit-ops` OpenClaw plugin and the `@horizonzzzz/audit-ops-admin` companion admin UI.
 
-## Packages
+This repository contains the runtime plugin that records and evaluates OpenClaw events, plus a local browser-based admin console for inspecting audit data and editing plugin config.
 
-- `packages/plugin`: OpenClaw plugin package published to npm and installed by OpenClaw.
-- `apps/admin`: Next.js full-stack admin console for browsing audit SQLite data and editing runtime plugin config.
+## Quick Start
+
+Install the plugin in OpenClaw:
+
+```bash
+openclaw plugins install @horizonzzzz/openclaw-audit-ops
+```
+
+Launch the companion admin UI locally with `npx`:
+
+```bash
+npx @horizonzzzz/audit-ops-admin
+```
+
+## Workspace Layout
+
+- `packages/plugin`: published OpenClaw plugin package for audit collection, alerting, and optional blocking.
+- `apps/admin`: Next.js full-stack admin UI for browsing audit SQLite data and editing runtime plugin config.
+
+## Package Guides
+
+- Plugin package guide: [packages/plugin/README.md](packages/plugin/README.md)
+- Admin app guide: [apps/admin/README.md](apps/admin/README.md)
 
 ## Workspace Commands
 
@@ -16,24 +37,22 @@ pnpm typecheck
 pnpm build
 ```
 
-## Plugin Package
+## Development
 
-Build and pack the OpenClaw plugin:
+Build and pack the plugin package:
 
 ```bash
 pnpm --filter @horizonzzzz/audit-ops build
 pnpm --filter @horizonzzzz/audit-ops pack
 ```
 
-Plugin metadata lives at `packages/plugin/openclaw.plugin.json`.
-
-## Admin App
-
-Run the admin console locally:
+Run the admin app in development mode:
 
 ```bash
 pnpm --filter @horizonzzzz/audit-ops-admin dev
 ```
+
+Plugin metadata lives at `packages/plugin/openclaw.plugin.json`.
 
 The admin app is a Next.js full-stack package. It stores its managed target settings in `apps/admin/data/target.json` and expects:
 
