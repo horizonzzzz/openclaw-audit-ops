@@ -1,0 +1,16 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(22, 119, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, #f7faff 0%, #f3f6fb 100%);
+  color: #1f2a37;
+  font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+}
+
+a {
+  text-decoration: none;
+}

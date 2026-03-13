@@ -1,9 +1,10 @@
-name: Release to npm
+name: Publish Packages to npm
 
 on:
   push:
     tags:
-      - "v*"
+      - "plugin-v*"
+      - "admin-v*"
 
 jobs:
   publish:
@@ -11,6 +12,18 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    strategy:
+      matrix:
+        package:
+          - tag_prefix: plugin-v
+            package_name: "@horizonzzzz/audit-ops"
+            package_path: "packages/plugin/package.json"
+            build_command: "pnpm --filter @horizonzzzz/audit-ops build"
+          - tag_prefix: admin-v
+            package_name: "@horizonzzzz/audit-ops-admin"
+            package_path: "apps/admin/package.json"
+            build_command: "pnpm --filter @horizonzzzz/audit-ops-admin build"
+    if: startsWith(github.ref_name, matrix.package.tag_prefix)
 
     steps:
       - name: Checkout
@@ -21,25 +34,30 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-          cache: npm
+          cache: pnpm
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build package
-        run: npm run build
+        run: ${{ matrix.package.build_command }}
 
       - name: Verify tag matches package version
         shell: bash
         run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./${{ matrix.package.package_path }}').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#${{ matrix.package.tag_prefix }}}"
           if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
             echo "Tag version $TAG_VERSION does not match package.json version $PACKAGE_VERSION"
             exit 1
           fi
 
       - name: Publish package
-        run: npm publish --provenance --access public
+        run: pnpm --filter "${{ matrix.package.package_name }}" publish --provenance --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
