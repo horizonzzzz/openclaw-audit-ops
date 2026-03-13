@@ -1,12 +1,22 @@
 {
   "name": "@horizonzzzz/audit-ops-admin",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Local dashboard for managing Audit Ops OpenClaw plugin config and SQLite data",
   "type": "module",
+  "bin": {
+    "audit-ops-admin": "./bin/audit-ops-admin.js"
+  },
+  "files": [
+    "bin",
+    ".next/standalone",
+    "README.md"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json"
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
+    "prepack": "next build && node ./scripts/prepare-package.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
@@ -21,5 +31,8 @@
   "devDependencies": {
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
