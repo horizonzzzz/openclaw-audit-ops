@@ -3,6 +3,20 @@
 External OpenClaw plugin for audit collection, sensitive-operation alerting, and optional blocking.
 Storage and schema management are built on `Drizzle ORM + better-sqlite3`.
 
+## Recommended Admin UI
+
+For day-to-day operations, a companion admin UI is recommended for browsing audit events, inspecting the SQLite data, and editing the plugin runtime config.
+
+Start it locally with `npx`:
+
+```bash
+npx @horizonzzzz/audit-ops-admin
+```
+
+The admin UI is optional and runs separately from the plugin itself. Once the plugin is installed, you can launch the UI against your local OpenClaw home directory when you need to inspect data or adjust settings.
+
+See `@horizonzzzz/audit-ops-admin` for launcher options and admin-specific details.
+
 ## Install
 
 From npm:
