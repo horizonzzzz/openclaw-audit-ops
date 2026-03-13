@@ -1,6 +1,8 @@
 import { requireSession } from "../../../../lib/server/auth";
 import { downloadEvents } from "../../../../lib/server/audit-service";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   await requireSession();
   const payload = await downloadEvents();

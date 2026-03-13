@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
+import { Providers } from "../components/providers";
 import "./globals.css";
 
 export const metadata = {
-  title: "Audit Ops Admin",
-  description: "Manage Audit Ops runtime config and SQLite data"
+  title: "审计运维控制台",
+  description: "管理 Audit Ops 插件运行时配置和 SQLite 审计数据"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
       <body>
-        <div className="shell">{children}</div>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

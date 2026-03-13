@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { clearSession } from "../../../../lib/server/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   await clearSession();
   return NextResponse.redirect(new URL("/login", request.url), { status: 302 });

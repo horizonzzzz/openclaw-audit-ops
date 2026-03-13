@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireSession } from "../../../lib/server/auth";
 import { getEvents, removeEvents } from "../../../lib/server/audit-service";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   await requireSession();
   const { searchParams } = new URL(request.url);
